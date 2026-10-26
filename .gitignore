@@ -1,0 +1,18 @@
+# données du challenge (non redistribuables), soumissions, modèles
+data/
+submissions/
+models/
+runs/
+oof/
+feats/
+logs/
+images/
+*.npy
+*.npz
+*.bin
+*.safetensors
+__pycache__/
+*.pyc
+old_2021/
+oof/
+out/
