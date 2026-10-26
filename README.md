@@ -15,10 +15,10 @@ It can be downloaded, after creating a free account, from the challenge page:
 
 | File (name as downloaded) | Put it in | Content |
 |---|---|---|
-| `X_train_12tkObq.csv` | Google Drive `rakuten_couleurs/` and `data/` | 212,120 products: image file name, title (`item_name`), description (`item_caption`) |
-| `y_train_Q9n2dCu.csv` | Google Drive `rakuten_couleurs/` and `data/` | colour lists, e.g. `['White', 'Green', 'Black']` |
-| `X_test_gDTIJPh.csv` | Google Drive `rakuten_couleurs/` and `data/` | 37,347 test products |
-| `images_NFkV58V.tar` | Google Drive `rakuten_couleurs/` | one image per product |
+| `X_train_12tkObq.csv` | Google Drive folder and `data/` | 212,120 products: image file name, title (`item_name`), description (`item_caption`) |
+| `y_train_Q9n2dCu.csv` | Google Drive folder and `data/` | colour lists, e.g. `['White', 'Green', 'Black']` |
+| `X_test_gDTIJPh.csv` | Google Drive folder and `data/` | 37,347 test products |
+| `images_NFkV58V.tar` | Google Drive folder | one image per product |
 | `y_random_zKiBR00.csv` | `data/` | sample submission, used to check the row order |
 
 ## Approach
@@ -63,23 +63,22 @@ What did not help:
 
 | File | Role |
 |---|---|
-| `colab/rakuten_couleurs_5plis.ipynb` | Colab notebook: SigLIP embeddings, the three base models in 5 folds (saved fold by fold to Google Drive, resumable), stacking with and without neighbours (XGBoost), submission |
-| `stack_voisins.py` | Local step 4 with LightGBM: reads the out-of-fold files, compares the stacker with and without neighbours, writes the submission (this produced the 0.7929 file) |
+| `colab/rakuten_colours_5fold.ipynb` | Colab notebook: SigLIP embeddings, the three base models in 5 folds (saved fold by fold to Google Drive, resumable), stacking with and without neighbours (XGBoost), submission |
+| `stack_neighbours.py` | Local step 4 with LightGBM: reads the out-of-fold files, compares the stacker with and without neighbours, writes the submission (this produced the 0.7929 file) |
 | `common.py` | Data loading, label binarisation, metric, per-colour thresholds, submission format |
 | `requirements.txt` | Packages for the local step (Colab installs its own) |
 
-Code comments and notebook text are in French.
-
 ## Reproduce
 
-1. Put the challenge files in a Google Drive folder `rakuten_couleurs/` (see [Data](#data)).
-2. Open `colab/rakuten_couleurs_5plis.ipynb` in Colab with an A100 GPU and run all cells. Measured durations on
+1. Put the challenge files in a Google Drive folder named `rakuten_couleurs/`, or set `DRIVE_DIR` in the notebook
+   (see [Data](#data)).
+2. Open `colab/rakuten_colours_5fold.ipynb` in Colab with an A100 GPU and run all cells. Measured durations on
    A100: about 23 min per BERT fold, about 10 min per TF-IDF fold; the SigLIP embeddings took 34 min on an L4.
-   The out-of-fold files go to `Drive/rakuten_couleurs/out/oof5/`.
+   The out-of-fold files go to `out/oof5/` in that Drive folder.
 3. Locally, copy that folder to `oof/oof5/` and the CSV files to `data/`, then:
    ```
    pip install -r requirements.txt
-   python stack_voisins.py
+   python stack_neighbours.py
    ```
    The submission is written to `submissions/`.
 
@@ -91,6 +90,6 @@ Code comments and notebook text are in French.
   (holdout), but they add 2 points to the stacker. They would not help for a product from an unseen shop.
 - Scores are public-leaderboard scores. The private leaderboard is only updated twice a year.
 - The Colab notebook's neighbour step (XGBoost) was tested end to end on a 3,000-row sample only. The submitted
-  file came from `stack_voisins.py` (LightGBM) run on the full out-of-fold files.
+  file came from `stack_neighbours.py` (LightGBM) run on the full out-of-fold files.
 - My files have 212,120 training and 37,347 test products, while the challenge page announces 212,659 and 37,528.
   I have not checked whether the data was updated after 2021.

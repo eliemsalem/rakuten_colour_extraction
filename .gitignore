@@ -1,18 +1,17 @@
-# données du challenge (non redistribuables), soumissions, modèles
+# challenge data (confidential), submissions, predictions, models
 data/
 submissions/
 models/
 runs/
 oof/
+out/
 feats/
 logs/
 images/
+old_2021/
 *.npy
 *.npz
 *.bin
 *.safetensors
 __pycache__/
 *.pyc
-old_2021/
-oof/
-out/

@@ -1,7 +1,7 @@
-"""Chargement des données, plis de validation croisée, métrique et seuils communs à tous les modèles.
+"""Data loading, metric, per-colour thresholds and submission format shared by the local scripts.
 
-Convention : chaque modèle écrit dans oof/<nom>_oof.npy (n_train x 19, probas hors-pli sur le train)
-et oof/<nom>_test.npy (n_test x 19, moyenne des modèles des plis sur le test).
+Out-of-fold files written by the Colab notebook: oof/oof5/<model>_f<k>.npz with
+"val" (fold k rows x 19 colours) and "test" (n_test x 19 colours).
 """
 import ast
 import html
@@ -11,7 +11,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from sklearn.metrics import f1_score
-from sklearn.model_selection import KFold
 from sklearn.preprocessing import MultiLabelBinarizer
 
 HERE = Path(__file__).parent
@@ -19,15 +18,14 @@ DATA = HERE / "data"
 OOF = HERE / "oof"
 OOF.mkdir(exist_ok=True)
 SUB = HERE / "submissions"
-N_FOLDS = 5
-SEED = 42
+SUB.mkdir(exist_ok=True)
 
 _TAG = re.compile(r"<[^>]+>")
 _WS = re.compile(r"\s+")
 
 
 def clean_html(s, maxlen=None):
-    """Retire balises et entités HTML ; tronque éventuellement (les descriptions sont parfois très longues)."""
+    """Removes HTML tags and entities; optionally truncates (some descriptions are very long)."""
     if not isinstance(s, str):
         return ""
     s = html.unescape(html.unescape(s))
@@ -36,7 +34,7 @@ def clean_html(s, maxlen=None):
 
 
 def load(caption_len=1000):
-    """Renvoie train, test, Y (n_train x 19, 0/1) et la liste des couleurs (indice -> nom)."""
+    """Returns train, test, Y (n_train x 19, 0/1) and the list of colours (index -> name)."""
     tr = pd.read_csv(DATA / "X_train_12tkObq.csv", index_col=0)
     te = pd.read_csv(DATA / "X_test_gDTIJPh.csv", index_col=0)
     tags = pd.read_csv(DATA / "y_train_Q9n2dCu.csv", index_col=0)["color_tags"].map(ast.literal_eval)
@@ -45,29 +43,23 @@ def load(caption_len=1000):
     for df in (tr, te):
         df["item_name"] = df["item_name"].map(clean_html)
         df["item_caption"] = df["item_caption"].map(lambda s: clean_html(s, caption_len))
-        df["image"] = [str(DATA / "images" / f) for f in df["image_file_name"]]
     return tr, te, Y, list(mlb.classes_)
 
 
-def folds(n):
-    """Liste de (train_idx, val_idx), identique pour tous les modèles."""
-    return list(KFold(n_splits=N_FOLDS, shuffle=True, random_state=SEED).split(np.zeros(n)))
-
-
 def wf1(Y, P):
-    """Métrique du challenge : F1 pondéré sur les étiquettes binarisées."""
+    """Challenge metric: weighted F1 over the binarised labels."""
     return f1_score(Y, P, average="weighted", zero_division=0)
 
 
 def binarize(probs, thr):
-    """Seuil par couleur, et au moins une couleur par produit (la plus probable)."""
+    """One threshold per colour, and at least one colour per product (the most likely one)."""
     P = (probs >= thr).astype(int)
     P[np.arange(len(P)), probs.argmax(1)] = 1
     return P
 
 
 def fit_thresholds(Y, probs, grid=np.arange(0.05, 0.80, 0.01)):
-    """Un seuil par couleur : le F1 pondéré est la moyenne des F1 par couleur, donc on optimise chacun à part."""
+    """One threshold per colour: the weighted F1 is a mean of per-colour F1 scores, so each is tuned separately."""
     thr = np.empty(Y.shape[1])
     for j in range(Y.shape[1]):
         y, p = Y[:, j], probs[:, j]
@@ -78,20 +70,7 @@ def fit_thresholds(Y, probs, grid=np.arange(0.05, 0.80, 0.01)):
     return thr
 
 
-def honest_score(Y, probs, seed=SEED):
-    """Seuils réglés sur une moitié, score mesuré sur l'autre (et inversement), moyenne des deux."""
-    idx = np.random.default_rng(seed).permutation(len(Y))
-    a, b = idx[: len(Y) // 2], idx[len(Y) // 2:]
-    s = [wf1(Y[v], binarize(probs[v], fit_thresholds(Y[t], probs[t]))) for t, v in ((a, b), (b, a))]
-    return float(np.mean(s))
-
-
-def save_preds(name, oof, test):
-    np.save(OOF / f"{name}_oof.npy", oof.astype(np.float32))
-    np.save(OOF / f"{name}_test.npy", test.astype(np.float32))
-
-
 def write_submission(path, P, colors):
-    """Format de 2021 : ',color_tags' avec index, une liste Python par ligne."""
+    """Challenge format: ',color_tags' with the row index, one Python list per row."""
     tags = [str([colors[j] for j in np.flatnonzero(row)]) for row in P]
     pd.DataFrame({"color_tags": tags}).to_csv(path)
